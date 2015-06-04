@@ -1,17 +1,27 @@
 require 'readline' # is a library that allows you to interact with the user to get user input.
 require 'date'
+require 'open-uri' # Library that allows us to connect to URLs.
 
 # The earliest date for which there is consistent data
-DATA_START_DATE = '2006-09-20'
+DATA_START_DATE = '2012-01-01'
 
 # We want to be kind to the remote server. This is the maximum number
 # of days that can be retrieved. Remember for each day, we will make 3
 # queries, one for each reading type. Keep this value low.
 MAX_DAYS = 7
 
+# The supported reading types as a hash.
+# Each key is the name used by the remote server to locate the data.
+# Each value is a plain text label for that data.
+READING_TYPES = {
+    "Wind_Speed" => "Wind Speed",
+    "Air_Temp" => "Air Temp",
+    "Barometric_Press" => "Pressure"
+}
+
+### User Input ###
 
 # Ask the user (via the command line) to provide valid start and end dates.
-#
 # @return [array] [start_date, end_date]
 #
 def query_user_for_date_range
@@ -85,4 +95,37 @@ def date_range_valid?(start_date, end_date)
     return false
   end
   return true
+end
+
+### Retrieve remote data ###
+
+# Retrieves readings for a particular reading type for a range
+# of dates from the remote server as an array of floating point
+# values.
+def get_readings_from_remote_for_dates(type, start_date, end_date)
+  readings = []
+  start_date.upto(end_date) do |date|
+    readings += get_readings_from_remote(type, date)
+  end
+  return readings
+end
+
+# Retrieves readings for a particular reading type for a particular
+# date from the remote server as an array of floating point values.
+def get_readings_from_remote(type, date)
+  raise "Invalid Reading Type" unless READING_TYPES.keys.include?(type)
+
+  # read the remote file, split readings into an array
+  base_url = "http://lpo.dt.navy.mil/data/DM"
+  url = "#{base_url}/#{date.year}/#{date.strftime("%Y_%m_%d")}/#{type}"
+  puts "Retrieving: #{url}"
+  data = open(url).readlines # ".readlines" takes all the lines in the response and breaks them up into an array.
+
+  # Extract the reading from each line
+  # "2014_01_01 00:02:57   7.6\r\n" becomes 7.6
+  readings = data.map do |line|
+    line_items = line.chomp.split(" ")
+    reading = line_items[2].to_f # convert string into floating point number.
+  end
+  return readings
 end
